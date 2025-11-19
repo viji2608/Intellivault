@@ -1,0 +1,5 @@
+CONFIDENTIAL SOFTWARE LICENSE AGREEMENT
+This Agreement is entered into between Acme Corporation.
+LICENSE GRANT: Non-exclusive license for internal use.
+PAYMENT TERMS: Annual fee $250,000 USD.
+TERM: 3 years with automatic renewal.
