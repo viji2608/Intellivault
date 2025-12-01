@@ -1,0 +1,4 @@
+TECHNICAL SPECIFICATION
+System: Strategy
+Version: 2.6
+Critical business information requiring strict confidentiality.

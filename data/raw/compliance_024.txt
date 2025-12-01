@@ -1,0 +1,4 @@
+COMPLIANCE REQUIREMENT
+Regulation: Strategy
+Status: Active
+Sensitive data requiring encryption and access controls.

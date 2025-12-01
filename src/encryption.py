@@ -2,80 +2,103 @@ from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
 import base64
 import numpy as np
+from pathlib import Path
+import json
 
 class EncryptionManager:
     """
     Handles encryption and decryption of embedding vectors.
     Uses AES-256-GCM for authenticated encryption.
+    Automatically saves and loads encryption keys.
     """
     
     def __init__(self, master_key=None):
         """
         Initialize with a master encryption key.
-        If no key provided, generates a new random 256-bit key.
+        If no key provided, tries to load from config/encryption_key.json
+        If no saved key exists, generates a new random 256-bit key.
         
         Args:
-            master_key: Optional 32-byte key. If None, generates new key.
+            master_key: Optional 32-byte key. If None, loads or generates key.
         """
-        if master_key is None:
-            # Generate a secure random 256-bit (32-byte) key
-            self.master_key = get_random_bytes(32)
-            print("⚠️  New encryption key generated!")
-            print("⚠️  Save this key securely - you'll need it to decrypt data!")
-        else:
+        if master_key is not None:
+            # User provided a key directly
             self.master_key = master_key
-            print("✓ Loaded existing encryption key")
+            print("✓ Using provided encryption key")
+            return
+        
+        # Determine project root
+        current_path = Path.cwd()
+        if current_path.name == 'src' or current_path.name == 'tests':
+            project_root = current_path.parent
+        else:
+            project_root = current_path
+        
+        key_file = project_root / 'config' / 'encryption_key.json'
+        
+        # Try to load existing key
+        if key_file.exists():
+            try:
+                with open(key_file, 'r') as f:
+                    key_data = json.load(f)
+                self.master_key = base64.b64decode(key_data['key'])
+                print("✓ Loaded existing encryption key")
+                return
+            except Exception as e:
+                print(f"⚠️  Error loading key file: {e}")
+                print("⚠️  Generating new key...")
+        
+        # No existing key found - generate new one
+        self.master_key = get_random_bytes(32)
+        print("⚠️  New encryption key generated!")
+        
+        # Save the new key
+        self._save_key(project_root)
+    
+    def _save_key(self, project_root):
+        """Save the encryption key to config directory"""
+        try:
+            config_dir = project_root / 'config'
+            config_dir.mkdir(parents=True, exist_ok=True)
+            
+            key_data = {
+                'key': base64.b64encode(self.master_key).decode('utf-8'),
+                'algorithm': 'AES-256-GCM',
+                'note': 'IntelliVault master encryption key - KEEP SECURE!'
+            }
+            
+            key_file = config_dir / 'encryption_key.json'
+            with open(key_file, 'w') as f:
+                json.dump(key_data, f, indent=2)
+            
+            print(f"✓ Key saved to: {key_file.absolute()}")
+            print("⚠️  IMPORTANT: Add 'config/encryption_key.json' to .gitignore")
+        except Exception as e:
+            print(f"⚠️  Could not save key: {e}")
     
     def encrypt_vector(self, vector):
-        """
-        Encrypt a numpy embedding vector.
-        
-        Args:
-            vector: numpy array (the embedding)
-            
-        Returns:
-            dict with encrypted data and metadata
-        """
-        # Step 1: Convert numpy array to bytes
+        """Encrypt a numpy embedding vector"""
         vector_bytes = vector.tobytes()
-        
-        # Step 2: Create cipher with random nonce (IV)
         cipher = AES.new(self.master_key, AES.MODE_GCM)
-        
-        # Step 3: Encrypt and get authentication tag
         ciphertext, tag = cipher.encrypt_and_digest(vector_bytes)
         
-        # Step 4: Package everything for storage
         return {
             'ciphertext': base64.b64encode(ciphertext).decode('utf-8'),
             'nonce': base64.b64encode(cipher.nonce).decode('utf-8'),
             'tag': base64.b64encode(tag).decode('utf-8'),
-            'shape': vector.shape,  # We need this to reconstruct
-            'dtype': str(vector.dtype)  # And this too
+            'shape': vector.shape,
+            'dtype': str(vector.dtype)
         }
     
     def decrypt_vector(self, encrypted_data):
-        """
-        Decrypt an encrypted vector back to numpy array.
-        
-        Args:
-            encrypted_data: dict from encrypt_vector()
-            
-        Returns:
-            numpy array (original embedding)
-        """
-        # Step 1: Decode from base64
+        """Decrypt an encrypted vector back to numpy array"""
         ciphertext = base64.b64decode(encrypted_data['ciphertext'])
         nonce = base64.b64decode(encrypted_data['nonce'])
         tag = base64.b64decode(encrypted_data['tag'])
         
-        # Step 2: Create cipher with original nonce
         cipher = AES.new(self.master_key, AES.MODE_GCM, nonce=nonce)
-        
-        # Step 3: Decrypt and verify authentication tag
         vector_bytes = cipher.decrypt_and_verify(ciphertext, tag)
         
-        # Step 4: Reconstruct numpy array
         vector = np.frombuffer(vector_bytes, dtype=encrypted_data['dtype'])
         return vector.reshape(encrypted_data['shape'])
     
@@ -90,27 +113,70 @@ class EncryptionManager:
         return cls(master_key=key)
 
 
-# Quick test when running this file directly
 if __name__ == "__main__":
-    print("Testing EncryptionManager...")
+    print("="*70)
+    print("TESTING ENCRYPTION MANAGER")
+    print("="*70)
     
-    # Create manager
-    em = EncryptionManager()
+    current_path = Path.cwd()
+    if current_path.name == 'src' or current_path.name == 'tests':
+        project_root = current_path.parent
+    else:
+        project_root = current_path
     
-    # Create test vector
+    print(f"\nCurrent directory: {current_path}")
+    print(f"Project root: {project_root}")
+    
+    key_file = project_root / 'config' / 'encryption_key.json'
+    print(f"Key file path: {key_file}")
+    print(f"Key file exists: {key_file.exists()}\n")
+    
+    print("[Test 1] Creating EncryptionManager...")
+    em1 = EncryptionManager()
+    
+    print("\n[Test 2] Testing encryption/decryption...")
     test_vector = np.array([1.5, 2.7, -0.3, 4.2])
     print(f"Original: {test_vector}")
     
-    # Encrypt
-    encrypted = em.encrypt_vector(test_vector)
+    encrypted = em1.encrypt_vector(test_vector)
     print(f"Encrypted: {encrypted['ciphertext'][:30]}...")
     
-    # Decrypt
-    decrypted = em.decrypt_vector(encrypted)
+    decrypted = em1.decrypt_vector(encrypted)
     print(f"Decrypted: {decrypted}")
     
-    # Verify they match
     if np.allclose(test_vector, decrypted):
-        print("✓ Success! Encryption/Decryption working!")
+        print("✓ Encryption/Decryption works!")
     else:
-        print("✗ Error! Vectors don't match!")
+        print("✗ FAILED!")
+    
+    print("\n[Test 3] Testing key persistence...")
+    print("Creating second EncryptionManager...")
+    em2 = EncryptionManager()
+    
+    if em1.get_key_base64() == em2.get_key_base64():
+        print("✓ Same key loaded!")
+    else:
+        print("✗ Different keys!")
+    
+    print("\n[Test 4] Cross-instance decryption...")
+    try:
+        decrypted2 = em2.decrypt_vector(encrypted)
+        if np.allclose(test_vector, decrypted2):
+            print("✓ Second instance can decrypt first instance's data!")
+        else:
+            print("✗ Wrong result!")
+    except Exception as e:
+        print(f"✗ Failed: {e}")
+    
+    print("\n" + "="*70)
+    print("SUMMARY")
+    print("="*70)
+    
+    if key_file.exists():
+        print(f"✓ Key file: {key_file}")
+        with open(key_file, 'r') as f:
+            key_data = json.load(f)
+        print(f"✓ Key preview: {key_data['key'][:20]}...")
+    
+    print("\n✓ All tests completed!")
+    print("="*70)

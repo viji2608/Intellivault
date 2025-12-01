@@ -1,0 +1,14 @@
+CONFIDENTIAL - DISASTER RECOVERY
+Document ID: TECHNICAL-085
+Classification: Internal Use Only
+Date: 2024-Q1
+
+Disaster Recovery content for technical department.
+This is a sample confidential document containing sensitive business information.
+Revenue data: $209K
+Employee count: 95
+Strategic priority: Medium
+
+Key details and information about disaster recovery.
+Contains proprietary methodologies and confidential analysis.
+Not for external distribution without proper authorization.
